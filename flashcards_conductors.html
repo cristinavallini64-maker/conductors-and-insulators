@@ -42,6 +42,8 @@ header h1 { font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 400; color: var(--
 .done-screen h2 { font-size: 1.8rem; font-weight: 400; }
 .done-screen p { font-family: Arial, sans-serif; color: var(--muted); font-size: 14px; line-height: 1.6; }
 .btn-restart { margin-top: 0.5rem; padding: 14px 32px; background: var(--accent); color: #1a1506; border: none; border-radius: 10px; font-family: Arial, sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; }
+.fc-say { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 20px; line-height: 1; display: grid; place-items: center; cursor: pointer; }
+.fc-say.on { background: var(--accent); }
 </style>
 </head>
 <body>
@@ -57,11 +59,13 @@ header h1 { font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 400; color: var(--
 <div class="card-scene" id="card-scene" onclick="flipCard()">
   <div class="card" id="card">
     <div class="card-face card-front">
+      <button type="button" class="fc-say" id="say-q" title="Listen" onclick="event.stopPropagation(); fcSay('q')">&#128266;</button>
       <div class="card-tag">Question &mdash; speak your answer</div>
       <div class="card-question" id="q-text"></div>
       <div class="flip-hint">&#8635; tap card to reveal answer</div>
     </div>
     <div class="card-face card-back">
+      <button type="button" class="fc-say" id="say-a" title="Listen" onclick="event.stopPropagation(); fcSay('a')">&#128266;</button>
       <div class="card-tag">Model answer</div>
       <div class="card-answer" id="a-text"></div>
     </div>
@@ -90,7 +94,28 @@ var cards = [
   { "q": 'What happens to free electrons when a wire is connected to a battery?', "a": 'When connected to a battery, <strong>the free electrons move through the wire</strong>, creating an electric current.' }
 ];
 var current = 0, seen = {}, flipped = false;
+
+function fcVoice() {
+  var v = speechSynthesis.getVoices();
+  var gb = v.filter(function (x) { return /^en[-_]gb/i.test(x.lang) || /united kingdom|\buk\b|british/i.test(x.name); });
+  var good = function (x) { return /google|natural|online|enhanced|premium/i.test(x.name); };
+  return gb.find(good) || gb[0] || null;
+}
+function stopSay() { if ('speechSynthesis' in window) { speechSynthesis.cancel(); document.querySelectorAll('.fc-say').forEach(function (b) { b.classList.remove('on'); }); } }
+function fcSay(side) {
+  if (!('speechSynthesis' in window)) return;
+  var btn = document.getElementById(side === 'q' ? 'say-q' : 'say-a');
+  if (speechSynthesis.speaking) { stopSay(); return; }
+  var d = document.createElement('div'); d.innerHTML = cards[current][side];
+  var u = new SpeechSynthesisUtterance(d.textContent);
+  var v = fcVoice(); if (v) u.voice = v; u.lang = 'en-GB'; u.rate = 0.9;
+  u.onend = u.onerror = function () { btn.classList.remove('on'); };
+  btn.classList.add('on'); speechSynthesis.speak(u);
+}
+if ('speechSynthesis' in window) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = function () { speechSynthesis.getVoices(); }; }
+else document.querySelectorAll('.fc-say').forEach(function (b) { b.style.display = 'none'; });
 function render() {
+  stopSay();
   document.getElementById('q-text').innerHTML = cards[current].q;
   document.getElementById('a-text').innerHTML = cards[current].a;
   flipped = false;
